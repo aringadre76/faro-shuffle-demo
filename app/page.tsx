@@ -71,12 +71,60 @@ function calculateShufflesToRestore(deckSize: number, isInShuffle: boolean): num
   let currentDeck = [...originalDeck];
   let count = 0;
   
-  do {
+  // Do the first shuffle
+  currentDeck = isInShuffle ? inShuffle(currentDeck) : outShuffle(currentDeck);
+  count = 1;
+  
+  // Continue until we're back to original
+  while (JSON.stringify(currentDeck) !== JSON.stringify(originalDeck) && count < 1000) {
     currentDeck = isInShuffle ? inShuffle(currentDeck) : outShuffle(currentDeck);
     count++;
-  } while (JSON.stringify(currentDeck) !== JSON.stringify(originalDeck) && count < 1000);
+  }
   
   return count;
+}
+
+function calculateBinaryDecomposition(deckSize: number): { outshuffles: number, inshuffles: number } {
+  const totalShuffles = calculateShufflesToRestore(deckSize, false);
+  const originalDeck = createDeck(deckSize);
+  
+  // The binary decomposition: we want to express the total number of outshuffles
+  // as a combination of outshuffles and inshuffles
+  // Key insight: inshuffles and outshuffles are related by the fact that
+  // an inshuffle followed by an outshuffle (or vice versa) can be equivalent to multiple outshuffles
+  
+  // For small deck sizes, let's find the optimal combination
+  let bestOut = totalShuffles;
+  let bestIn = 0;
+  
+  // Try all combinations where out + in = totalShuffles
+  for (let out = 0; out <= totalShuffles; out++) {
+    const in_ = totalShuffles - out;
+    
+    // Test this combination
+    let testDeck = [...originalDeck];
+    
+    // Apply outshuffles first
+    for (let i = 0; i < out; i++) {
+      testDeck = outShuffle(testDeck);
+    }
+    
+    // Then apply inshuffles
+    for (let i = 0; i < in_; i++) {
+      testDeck = inShuffle(testDeck);
+    }
+    
+    // Check if we're back to original order
+    if (JSON.stringify(testDeck) === JSON.stringify(originalDeck)) {
+      // Prefer combinations with fewer total shuffles or more outshuffles
+      if (out + in_ < bestOut + bestIn || (out + in_ === bestOut + bestIn && out > bestOut)) {
+        bestOut = out;
+        bestIn = in_;
+      }
+    }
+  }
+  
+  return { outshuffles: bestOut, inshuffles: bestIn };
 }
 
 export default function Home() {
@@ -152,18 +200,22 @@ export default function Home() {
       </div>
       
       <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
-        <div className="text-center mb-12 pt-8">
-          <div className="inline-block">
-            <h1 className="text-7xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent mb-2 tracking-tight">
+        <div className="text-center mb-16 pt-12">
+          <div className="space-y-6">
+            <h1 className="text-8xl font-black bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 bg-clip-text text-transparent tracking-tight leading-none">
               FARO SHUFFLE
             </h1>
-            <div className="h-1 w-full bg-gradient-to-r from-purple-300 via-pink-300 to-blue-300 rounded-full mb-2"></div>
+            <div className="flex items-center justify-center space-x-4">
+              <div className="h-0.5 w-16 bg-gradient-to-r from-transparent to-purple-300"></div>
+              <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+              <div className="h-0.5 w-16 bg-gradient-to-l from-transparent to-blue-300"></div>
+            </div>
+            <ShinyText 
+              text="The Perfect Mathematical Card Shuffle" 
+              className="text-2xl font-light text-white/90 drop-shadow-lg tracking-wide"
+              speed={4}
+            />
           </div>
-          <ShinyText 
-            text="The Perfect Mathematical Card Shuffle" 
-            className="text-xl font-medium text-white drop-shadow-lg"
-            speed={3}
-          />
         </div>
 
 
@@ -193,18 +245,10 @@ export default function Home() {
         </div>
 
         <div className="bg-gradient-to-br from-pink-100/90 to-purple-100/90 backdrop-blur-xl rounded-3xl p-8 border border-pink-300/50 shadow-2xl shadow-pink-200/30 mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="text-4xl">🔀</span>
-            <Shuffle 
-              text="Introduction to Faro Shuffle" 
-              tag="h2"
-              className="text-3xl font-black text-purple-700"
-              shuffleDirection="right"
-              duration={0.4}
-              shuffleTimes={3}
-              scrambleCharset="ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%&*"
-              threshold={0.5}
-            />
+          <div className="mb-6">
+            <h2 className="text-3xl font-black text-purple-700">
+              Introduction to Faro Shuffle
+            </h2>
           </div>
           
           <div className="space-y-4 text-gray-700 leading-relaxed">
@@ -420,11 +464,15 @@ export default function Home() {
                   <div className="text-4xl font-black text-purple-800 mt-1">{shuffleCount}</div>
                 </div>
                 <div className="bg-pink-50 rounded-xl p-4">
-                  <div className="text-sm text-pink-600 font-medium">To Restore</div>
-                  <div className="text-4xl font-black text-pink-800 mt-1">{shufflesToRestore}</div>
+                  <div className="text-sm text-pink-600 font-medium">Outshuffles Needed</div>
+                  <div className="text-4xl font-black text-pink-800 mt-1">{calculateBinaryDecomposition(deckSize).outshuffles}</div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-4">
-                  <div className="text-sm text-blue-600 font-medium">Progress</div>
+                  <div className="text-sm text-blue-600 font-medium">Inshuffles Needed</div>
+                  <div className="text-4xl font-black text-blue-800 mt-1">{calculateBinaryDecomposition(deckSize).inshuffles}</div>
+                </div>
+                <div className="bg-green-50 rounded-xl p-4">
+                  <div className="text-sm text-green-600 font-medium">Progress</div>
                   <div className="w-full bg-purple-100 rounded-full h-3 mt-2">
                     <div 
                       className="bg-gradient-to-r from-purple-300 to-pink-300 h-3 rounded-full transition-all duration-500"
